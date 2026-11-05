@@ -1,0 +1,50 @@
+require 'spec_helper'
+
+if defined?(Sidekiq)
+  describe Chewy::Strategy::Sidekiq do
+    around do |example|
+      sidekiq_settings = Chewy.settings[:sidekiq]
+      Chewy.settings[:sidekiq] = {queue: 'low'}
+      Chewy.strategy(:bypass) { example.run }
+      Chewy.settings[:sidekiq] = sidekiq_settings
+    end
+    before { Sidekiq::Worker.clear_all }
+    before do
+      stub_model(:city) do
+        update_index('cities') { self }
+      end
+
+      stub_index(:cities) do
+        index_scope City
+      end
+    end
+
+    let(:city) { City.create!(name: 'hello') }
+    let(:other_city) { City.create!(name: 'world') }
+
+    specify do
+      expect { [city, other_city].map(&:save!) }
+        .not_to update_index(CitiesIndex, strategy: :sidekiq)
+    end
+
+    specify do
+      expect(Sidekiq::Client).to receive(:push).with(hash_including('queue' => 'low')).and_call_original
+      Sidekiq.testing!(:inline) do
+        expect { [city, other_city].map(&:save!) }
+          .to update_index(CitiesIndex, strategy: :sidekiq)
+          .and_reindex(city, other_city).only
+      end
+    end
+
+    specify do
+      expect(CitiesIndex).to receive(:import!).with([city.id, other_city.id], suffix: '201601')
+      Chewy::Strategy::Sidekiq::Worker.new.perform('CitiesIndex', [city.id, other_city.id], suffix: '201601')
+    end
+
+    specify do
+      allow(Chewy).to receive(:disable_refresh_async).and_return(true)
+      expect(CitiesIndex).to receive(:import!).with([city.id, other_city.id], suffix: '201601', refresh: false)
+      Chewy::Strategy::Sidekiq::Worker.new.perform('CitiesIndex', [city.id, other_city.id], suffix: '201601')
+    end
+  end
+end

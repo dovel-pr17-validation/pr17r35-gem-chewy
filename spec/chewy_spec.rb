@@ -1,0 +1,127 @@
+require 'spec_helper'
+
+describe Chewy do
+  it 'has a version number' do
+    expect(Chewy::VERSION).not_to be_nil
+  end
+
+  describe '.derive_name' do
+    before do
+      stub_const('SomeIndex', Class.new)
+
+      stub_index(:developers)
+
+      stub_index('namespace/autocomplete')
+    end
+
+    specify do
+      expect { described_class.derive_name('some') }
+        .to raise_error(Chewy::UndefinedIndex, /SomeIndex/)
+    end
+    specify do
+      expect { described_class.derive_name('borogoves') }
+        .to raise_error(Chewy::UndefinedIndex, /Borogoves/)
+    end
+
+    specify { expect(described_class.derive_name(DevelopersIndex)).to eq(DevelopersIndex) }
+    specify { expect(described_class.derive_name('developers_index')).to eq(DevelopersIndex) }
+    specify { expect(described_class.derive_name('developers')).to eq(DevelopersIndex) }
+    specify do
+      expect(described_class.derive_name('namespace/autocomplete')).to eq(Namespace::AutocompleteIndex)
+    end
+  end
+
+  describe '.client' do
+    let!(:initial_client) { Chewy.current[:chewy_client] }
+    let(:faraday_block) { proc {} }
+    let(:mock_client) { double(:client) }
+    let(:expected_client_config) { {transport_options: {}} }
+
+    before do
+      Chewy.current[:chewy_client] = nil
+    end
+
+    specify do
+      expect(Chewy).to receive_messages(configuration: {transport_options: {proc: faraday_block}})
+
+      expect(Elasticsearch::Client).to receive(:new).with(expected_client_config) do |*_args, &passed_block|
+        # RSpec's `with(..., &block)` was used previously, but doesn't actually do
+        # any verification of the passed block (even of its presence).
+        expect(passed_block.source_location).to eq(faraday_block.source_location)
+
+        mock_client
+      end
+
+      expect(Chewy.client).to be_a(Chewy::ElasticClient)
+    end
+
+    after { Chewy.current[:chewy_client] = initial_client }
+  end
+
+  describe '.close_client' do
+    let!(:initial_client) { Chewy.current[:chewy_client] }
+
+    after { Chewy.current[:chewy_client] = initial_client }
+
+    context 'when a client exists for the current thread' do
+      let(:client) { instance_double(Chewy::ElasticClient) }
+
+      before { Chewy.current[:chewy_client] = client }
+
+      specify 'closes the client and clears the thread-local' do
+        expect(client).to receive(:close)
+        Chewy.close_client
+        expect(Chewy.current[:chewy_client]).to be_nil
+      end
+    end
+
+    context 'when no client exists for the current thread' do
+      before { Chewy.current[:chewy_client] = nil }
+
+      specify 'does nothing' do
+        expect { Chewy.close_client }.not_to raise_error
+        expect(Chewy.current[:chewy_client]).to be_nil
+      end
+    end
+  end
+
+  describe '.create_indices' do
+    before do
+      stub_index(:cities)
+      stub_index(:places)
+
+      # To avoid flaky issues when previous specs were run
+      allow(Chewy::Index).to receive(:descendants).and_return([CitiesIndex, PlacesIndex])
+
+      CitiesIndex.delete
+      PlacesIndex.delete
+    end
+
+    specify do
+      expect(CitiesIndex.exists?).to eq false
+      expect(PlacesIndex.exists?).to eq false
+
+      CitiesIndex.create!
+
+      expect(CitiesIndex.exists?).to eq true
+      expect(PlacesIndex.exists?).to eq false
+
+      expect { Chewy.create_indices }.not_to raise_error
+
+      expect(CitiesIndex.exists?).to eq true
+      expect(PlacesIndex.exists?).to eq true
+    end
+
+    specify '.create_indices!' do
+      expect(CitiesIndex.exists?).to eq false
+      expect(PlacesIndex.exists?).to eq false
+
+      expect { Chewy.create_indices! }.not_to raise_error
+
+      expect(CitiesIndex.exists?).to eq true
+      expect(PlacesIndex.exists?).to eq true
+
+      expect { Chewy.create_indices! }.to raise_error(Elastic::Transport::Transport::Errors::BadRequest)
+    end
+  end
+end

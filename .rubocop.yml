@@ -1,0 +1,71 @@
+inherit_from: .rubocop_todo.yml
+
+plugins:
+  - rubocop-rake
+
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 3.2
+  SuggestExtensions: false
+
+Layout/AccessModifierIndentation:
+  EnforcedStyle: outdent
+
+Layout/HashAlignment:
+  EnforcedLastArgumentHashStyle: always_ignore
+
+Layout/ParameterAlignment:
+  EnforcedStyle: with_fixed_indentation
+
+Layout/CaseIndentation:
+  EnforcedStyle: end
+
+Layout/EndAlignment:
+  EnforcedStyleAlignWith: variable
+
+Layout/FirstArrayElementIndentation:
+  EnforcedStyle: consistent
+
+Layout/FirstHashElementIndentation:
+  EnforcedStyle: consistent
+
+Layout/HeredocIndentation:
+  Enabled: false
+
+Layout/MultilineMethodCallIndentation:
+  EnforcedStyle: indented
+
+Layout/MultilineOperationIndentation:
+  EnforcedStyle: indented
+
+Layout/SpaceInsideHashLiteralBraces:
+  EnforcedStyle: no_space
+
+Lint/AmbiguousBlockAssociation:
+  Enabled: false
+
+Style/Alias:
+  EnforcedStyle: prefer_alias_method
+
+Style/AndOr:
+  EnforcedStyle: conditionals
+
+Style/DoubleNegation:
+  Enabled: false
+
+Style/RedundantStructKeywordInit:
+  Enabled: false
+
+Metrics/BlockLength:
+  Exclude:
+    - '**/*_spec.rb'
+    - '**/*_examples.rb'
+    - '**/*.rake'
+
+Metrics/ModuleLength:
+  Exclude:
+    - 'lib/chewy/rake_helper.rb'
+    - '**/*_spec.rb'
+
+Style/ArgumentsForwarding:
+  Enabled: false

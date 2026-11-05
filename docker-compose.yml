@@ -1,0 +1,24 @@
+services:
+  elasticsearch_test:
+    image: "docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION:-8.19.13}"
+    environment:
+      - bootstrap.memory_lock=${ES_MEMORY_LOCK:-false}
+      - "ES_JAVA_OPTS=-Xms${TEST_ES_HEAP_SIZE:-500m} -Xmx${TEST_ES_HEAP_SIZE:-500m}"
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "127.0.0.1:9250:9200"
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+  redis_test:
+    image: "redis:${REDIS_VERSION:-7}"
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
